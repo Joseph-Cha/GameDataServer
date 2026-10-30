@@ -7,6 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- 2회차. dotnet add package Microsoft.Data.Sqlite 가 추가한 줄 (버전은 설치 시점에 따라 다르다) -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Data 폴더의 파일을 실행 폴더로 복사한다 -->
     <None Update="Data\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

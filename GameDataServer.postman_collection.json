@@ -1,34 +1,221 @@
 {
   "info": {
     "name": "GameDataServer",
-    "description": "폴리텍 3일차 GameDataServer API. 변수 baseUrl을 로컬(http://localhost:5050) 또는 배포 주소(https://gamedataserver-joseph-cha.onrender.com)로 바꿔서 쓴다.",
+    "description": "폴리텍 3일차 GameDataServer API(SQLite 버전). 변수 baseUrl을 로컬(http://localhost:5050) 또는 배포 주소(https://gamedataserver-joseph-cha.onrender.com)로 바꿔서 쓴다.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "https://gamedataserver-joseph-cha.onrender.com" }
+    {
+      "key": "baseUrl",
+      "value": "https://gamedataserver-joseph-cha.onrender.com"
+    }
   ],
   "item": [
-    { "name": "GET /hello — 살아 있는지 확인",
-      "request": { "method": "GET", "url": "{{baseUrl}}/hello" } },
-    { "name": "GET /monsters — 전체 목록",
-      "request": { "method": "GET", "url": "{{baseUrl}}/monsters" } },
-    { "name": "GET /monsters/1 — 하나 조회",
-      "request": { "method": "GET", "url": "{{baseUrl}}/monsters/1" } },
-    { "name": "GET /monsters/999 — 없는 id (404)",
-      "request": { "method": "GET", "url": "{{baseUrl}}/monsters/999" } },
-    { "name": "GET /monsters/slow?ms=3000 — 일부러 느린 응답",
-      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/monsters/slow?ms=3000", "host": ["{{baseUrl}}"], "path": ["monsters","slow"], "query": [{ "key": "ms", "value": "3000" }] } } },
-    { "name": "GET /monsters/big?count=100 — 일부러 큰 데이터",
-      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/monsters/big?count=100", "host": ["{{baseUrl}}"], "path": ["monsters","big"], "query": [{ "key": "count", "value": "100" }] } } },
-    { "name": "POST /scores — 점수 등록",
-      "request": { "method": "POST", "url": "{{baseUrl}}/scores",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "body": { "mode": "raw", "raw": "{\n  \"player\": \"joseph\",\n  \"score\": 1200\n}" } } },
-    { "name": "POST /scores — 잘못된 입력 (400)",
-      "request": { "method": "POST", "url": "{{baseUrl}}/scores",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "body": { "mode": "raw", "raw": "{\n  \"player\": \"\",\n  \"score\": -1\n}" } } },
-    { "name": "GET /scores?top=10 — 랭킹",
-      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/scores?top=10", "host": ["{{baseUrl}}"], "path": ["scores"], "query": [{ "key": "top", "value": "10" }] } } }
+    {
+      "name": "GET /hello — 살아 있는지 확인",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/hello"
+      }
+    },
+    {
+      "name": "GET /monsters — 전체 목록",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/monsters"
+      }
+    },
+    {
+      "name": "GET /monsters/1 — 하나 조회",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/monsters/1"
+      }
+    },
+    {
+      "name": "GET /monsters/999 — 없는 id (404)",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/monsters/999"
+      }
+    },
+    {
+      "name": "POST /monsters — 몬스터 추가 (201)",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/monsters",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"독 좀비\",\n  \"hp\": 80,\n  \"attack\": 25,\n  \"speed\": 2.5\n}"
+        }
+      }
+    },
+    {
+      "name": "POST /monsters — 빈 이름 (400)",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/monsters",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"\",\n  \"hp\": 1,\n  \"attack\": 1,\n  \"speed\": 1\n}"
+        }
+      }
+    },
+    {
+      "name": "PUT /monsters/6 — 몬스터 고치기 (200, 없으면 404)",
+      "request": {
+        "method": "PUT",
+        "url": "{{baseUrl}}/monsters/6",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"맹독 좀비\",\n  \"hp\": 90,\n  \"attack\": 35,\n  \"speed\": 2.5\n}"
+        }
+      }
+    },
+    {
+      "name": "DELETE /monsters/6 — 몬스터 삭제 (204, 없으면 404)",
+      "request": {
+        "method": "DELETE",
+        "url": "{{baseUrl}}/monsters/6"
+      }
+    },
+    {
+      "name": "GET /monsters/slow?ms=3000 — 일부러 느린 응답",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/monsters/slow?ms=3000",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "monsters",
+            "slow"
+          ],
+          "query": [
+            {
+              "key": "ms",
+              "value": "3000"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "GET /monsters/big?count=100 — 일부러 큰 데이터",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/monsters/big?count=100",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "monsters",
+            "big"
+          ],
+          "query": [
+            {
+              "key": "count",
+              "value": "100"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "POST /scores — 점수 등록",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/scores",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"player\": \"joseph\",\n  \"score\": 1200\n}"
+        }
+      }
+    },
+    {
+      "name": "POST /scores — 잘못된 입력 (400)",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/scores",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"player\": \"\",\n  \"score\": -1\n}"
+        }
+      }
+    },
+    {
+      "name": "GET /scores?top=10 — 랭킹",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/scores?top=10",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "scores"
+          ],
+          "query": [
+            {
+              "key": "top",
+              "value": "10"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "GET /scores?top=3 — 상위 3명",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/scores?top=3",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "scores"
+          ],
+          "query": [
+            {
+              "key": "top",
+              "value": "3"
+            }
+          ]
+        }
+      }
+    }
   ]
 }
