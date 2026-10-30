@@ -2,7 +2,7 @@
 
 폴리텍 서버·바이브 코딩 3일차 실습 서버입니다. ASP.NET(.NET 10) 최소 API로 몬스터 데이터와 점수 랭킹을 제공합니다. 3일차 워크북 "02. 프로젝트 작업"의 완성 코드(참고본)와 같습니다.
 
-- 배포 주소: https://gamedataserver-joseph-cha.onrender.com
+- 배포 주소: https://gamedataserver-glt0.onrender.com (Render 서비스 이름은 `GameDataServer`. `gamedataserver` 주소를 누가 이미 써서 Render가 `-glt0`을 붙였다)
 - 로컬 실행: `dotnet run` (기본 5000번, macOS는 `PORT=5050 dotnet run`)
 - Postman: `GameDataServer.postman_collection.json`을 Import하고 `baseUrl` 변수를 바꿔서 씁니다
 

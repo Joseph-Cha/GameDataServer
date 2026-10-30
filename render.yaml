@@ -1,11 +1,12 @@
 # Render Blueprint — 대시보드에서 New → Blueprint로 이 저장소를 고르면
-# 아래 설정 그대로 Web Service가 만들어진다. (강의안 3-5 표의 값과 같다)
+# 아래 설정 그대로 Web Service가 만들어진다. (워크북 01 배포의 1-9 표와 같은 값)
+# 실제 서비스는 2026-10-30 대시보드에서 이 값으로 만들었다 → https://gamedataserver-glt0.onrender.com
+# (gamedataserver 주소를 누가 이미 써서 Render가 -glt0을 붙였다)
 services:
   - type: web
-    name: gamedataserver-joseph-cha   # https://gamedataserver-joseph-cha.onrender.com
+    name: GameDataServer
     runtime: docker
     region: singapore
     plan: free
     branch: main
     autoDeploy: true                  # git push 때마다 다시 빌드·배포
-    healthCheckPath: /hello

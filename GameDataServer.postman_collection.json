@@ -1,13 +1,13 @@
 {
   "info": {
     "name": "GameDataServer",
-    "description": "폴리텍 3일차 GameDataServer API(SQLite 버전). 변수 baseUrl을 로컬(http://localhost:5050) 또는 배포 주소(https://gamedataserver-joseph-cha.onrender.com)로 바꿔서 쓴다.",
+    "description": "폴리텍 3일차 GameDataServer API(SQLite 버전). 변수 baseUrl을 로컬(http://localhost:5050) 또는 배포 주소(https://gamedataserver-glt0.onrender.com)로 바꿔서 쓴다.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "baseUrl",
-      "value": "https://gamedataserver-joseph-cha.onrender.com"
+      "value": "https://gamedataserver-glt0.onrender.com"
     }
   ],
   "item": [
