@@ -1,8 +1,47 @@
-using System.Text.Json;        // 씨앗 데이터(Data/monsters.json)를 읽을 때만 쓴다
+using Microsoft.AspNetCore.Authentication.JwtBearer;  // ← 추가: Bearer 토큰 검사기
+using Microsoft.AspNetCore.Identity;                  // ← 추가: 비밀번호 해시
 using Microsoft.Data.Sqlite;   // ← 추가: SQLite 데이터베이스를 여는 도구
+using Microsoft.IdentityModel.JsonWebTokens;          // ← 추가: JWT 만들기
+using Microsoft.IdentityModel.Tokens;                 // ← 추가: 서명 키와 검사 규칙
+using System.Security.Claims;                         // ← 추가: 토큰 안의 정보(클레임)
+using System.Text;                                    // ← 추가: 비밀 키 글자를 바이트로
+using System.Text.Json;        // 씨앗 데이터(Data/monsters.json)를 읽을 때만 쓴다
 
+// 바꾼 뒤
 var builder = WebApplication.CreateBuilder(args);
+
+// ── 3회차 인증. 서명 키 — 서버만 아는 비밀. Render에서는 환경 변수 JWT_KEY로 넣는다 ──
+var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY")
+             ?? "local-dev-only-key-0123456789-abcdefghijklmnopqrstuvwxyz";   // 내 PC용. 32글자 이상
+var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
+const string Issuer = "GameDataServer";   // 누가 발급했나 (iss)
+const string Audience = "MonsterDex";     // 누구에게 쓰라고 발급했나 (aud)
+
+// ── 3회차 인증. 들어온 토큰을 어떻게 검사할지 등록한다 ──
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.MapInboundClaims = false;   // 토큰의 "sub"를 이름 그대로 쓴다
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = Issuer,                    // 내가 발급한 것인가
+            ValidateAudience = true,
+            ValidAudience = Audience,               // 이 게임용인가
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = signingKey,  // 서명이 맞는가
+            ValidateLifetime = true,                                         // 만료되지 않았나
+            ClockSkew = TimeSpan.FromSeconds(30)                             // 시계 오차 30초까지 봐준다
+        };
+    });
+builder.Services.AddAuthorization();
+
 var app = builder.Build();
+
+app.UseAuthentication();   // 요청마다 Authorization 헤더의 토큰을 읽고 검사한다
+app.UseAuthorization();    // RequireAuthorization()이 붙은 주소는 검사를 통과해야 들어간다
+
+var hasher = new PasswordHasher<string>();   // 비밀번호를 그대로 저장하지 않고 해시로 바꾼다
 
 // ── 2회차. DB 파일 준비 ────────────────────────────────────────────────
 // Data/game.db 파일 하나가 데이터베이스다. 없으면 처음 열 때 만들어진다
@@ -24,6 +63,18 @@ using (var conn = new SqliteConnection(connectionString))
         )
         """;
     create.ExecuteNonQuery();
+
+    // ── 3회차 인증. 플레이어 표 — 이름은 겹치면 안 되고(UNIQUE) 비밀번호는 해시로만 ──
+    var createPlayers = conn.CreateCommand();
+    createPlayers.CommandText = """
+        CREATE TABLE IF NOT EXISTS players (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            name          TEXT    NOT NULL UNIQUE,
+            password_hash TEXT    NOT NULL,
+            created_at    TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """;
+    createPlayers.ExecuteNonQuery();
 
     // ── 3회차. 점수 표 — 몬스터 표 옆에 하나 더. 씨앗은 없다. 처음엔 비어 있다 ──
     var createScores = conn.CreateCommand();
@@ -87,6 +138,20 @@ static List<Monster> LoadAllMonsters(string connectionString)
     return ReadMonsters(reader);
 }
 
+// ── 3회차 인증. 토큰 만들기 — 이름을 넣고 서명 키로 도장을 찍는다 ──
+string CreateToken(string player)
+{
+    var handler = new JsonWebTokenHandler();
+    return handler.CreateToken(new SecurityTokenDescriptor
+    {
+        Issuer = Issuer,                                              // iss
+        Audience = Audience,                                          // aud
+        Subject = new ClaimsIdentity([new Claim("sub", player)]),     // sub: 누구의 토큰인가
+        Expires = DateTime.UtcNow.AddMinutes(30),                     // exp: 30분 뒤 만료
+        SigningCredentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256)  // HS256 도장
+    });
+}
+
 app.MapGet("/hello", () => "안녕하세요, 서버입니다.");
 
 // ── 몬스터 조회 — 이제 파일이 아니라 DB에서 읽는다 ─────────────────────
@@ -126,8 +191,47 @@ app.MapGet("/monsters/{id:int}", (int id) =>
         : Results.Ok(found[0]);
 });
 
-// ── 2회차. 몬스터 추가 — POST는 "받아라". 본문의 JSON이 Monster로 들어온다 ──
-app.MapPost("/monsters", (Monster m) =>
+// ── 3회차 인증. 로그인 — 이름과 비밀번호를 확인하고 토큰을 발급한다 ──
+// 수업용 간소화: 처음 보는 이름이면 그 비밀번호로 가입시키고 바로 토큰을 준다
+app.MapPost("/auth/login", (LoginRequest req) =>
+{
+    if (string.IsNullOrWhiteSpace(req.Player) || string.IsNullOrEmpty(req.Password))
+        return Results.BadRequest(new { error = "player와 password는 비어 있으면 안 됩니다." });
+
+    var player = req.Player.Trim();
+    using var conn = new SqliteConnection(connectionString);
+    conn.Open();
+
+    var find = conn.CreateCommand();
+    find.CommandText = "SELECT password_hash FROM players WHERE name = $name";
+    find.Parameters.AddWithValue("$name", player);
+    var savedHash = find.ExecuteScalar() as string;   // 없는 이름이면 null
+
+    if (savedHash is null)
+    {
+        var insert = conn.CreateCommand();
+        insert.CommandText = "INSERT INTO players (name, password_hash) VALUES ($name, $hash)";
+        insert.Parameters.AddWithValue("$name", player);
+        insert.Parameters.AddWithValue("$hash", hasher.HashPassword(player, req.Password));
+        insert.ExecuteNonQuery();
+    }
+    else if (hasher.VerifyHashedPassword(player, savedHash, req.Password) == PasswordVerificationResult.Failed)
+    {
+        return Results.Json(new { error = "비밀번호가 틀렸습니다." }, statusCode: 401);
+    }
+
+    return Results.Ok(new { accessToken = CreateToken(player), tokenType = "Bearer", expiresIn = 1800 });
+});
+
+// ── 3회차 인증. 내 정보 — 토큰만 보내면 서버가 내가 누구인지 알려 준다 ──
+app.MapGet("/auth/me", (ClaimsPrincipal user) => new
+{
+    player = user.FindFirst("sub")?.Value,
+    expiresAt = DateTimeOffset.FromUnixTimeSeconds(long.Parse(user.FindFirst("exp")!.Value))
+}).RequireAuthorization();
+
+// ── 3회차 인증. 몬스터 추가 — 이제 토큰이 있어야 들어온다. 누가 추가했는지는 토큰에서 꺼낸다 ──
+app.MapPost("/monsters", (Monster m, ClaimsPrincipal user) =>   // ← user: 검사를 통과한 토큰의 주인
 {
     if (string.IsNullOrWhiteSpace(m.Name))
         return Results.BadRequest(new { error = "name은 비어 있으면 안 됩니다." });
@@ -145,8 +249,11 @@ app.MapPost("/monsters", (Monster m) =>
     cmd.Parameters.AddWithValue("$speed", m.Speed);
     m.Id = (int)(long)cmd.ExecuteScalar()!;   // DB가 붙여 준 새 id
 
+    var player = user.FindFirst("sub")?.Value;   // ← 서버가 서명을 확인한 토큰 속 이름
+    app.Logger.LogInformation("몬스터 추가: {Name} (추가한 사람: {Player})", m.Name, player);   // ← 서버 창에 남긴다
+
     return Results.Created($"/monsters/{m.Id}", m);   // 201 Created + 새 몬스터
-});
+}).RequireAuthorization();   // ← 이 한 줄이 자물쇠. 토큰이 없거나 틀리면 401
 
 // ── 2회차. 몬스터 고치기 — PUT은 "이걸로 바꿔라". 본문의 JSON으로 그 id의 줄을 통째로 바꾼다 ──
 app.MapPut("/monsters/{id:int}", (int id, Monster m) =>
@@ -170,7 +277,7 @@ app.MapPut("/monsters/{id:int}", (int id, Monster m) =>
 
     m.Id = id;                 // 본문의 id는 무시하고 주소의 id를 쓴다
     return Results.Ok(m);      // 200 OK + 바뀐 몬스터
-});
+}).RequireAuthorization();
 
 // ── 2회차. 몬스터 삭제 — DELETE는 "지워라". 본문은 없고 주소의 id만 쓴다 ──
 app.MapDelete("/monsters/{id:int}", (int id) =>
@@ -185,7 +292,7 @@ app.MapDelete("/monsters/{id:int}", (int id) =>
     return deleted == 0
         ? Results.NotFound(new { error = $"id {id} 몬스터가 없습니다." })
         : Results.NoContent();             // 204 No Content. 돌려줄 본문이 없다
-});
+}).RequireAuthorization();
 
 //// 몬스터 하나 — 없으면 404
 //app.MapGet("/monsters/{id:int}", (int id) =>
@@ -272,4 +379,10 @@ class RankEntry            // GET /scores가 돌려주는 한 줄
     public int Rank { get; set; }
     public string Player { get; set; } = "";
     public int Score { get; set; }
+}
+
+class LoginRequest         // POST /auth/login이 받는 모양
+{
+    public string Player { get; set; } = "";
+    public string Password { get; set; } = "";
 }
